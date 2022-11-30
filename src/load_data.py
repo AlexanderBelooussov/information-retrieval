@@ -32,8 +32,8 @@ def read_transcripts():
 
 
 def read_transcript(show, episode):
-    folder1 = show[5]
-    folder2 = show[6]
+    folder1 = str(show[5]).upper()
+    folder2 = str(show[6]).upper()
     path = data_dir + 'spotify-podcasts-2020/podcasts-transcripts/' \
            + folder1 + '/' \
            + folder2 + '/' \
