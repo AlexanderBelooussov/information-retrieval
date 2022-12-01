@@ -4,6 +4,7 @@ import pandas as pd
 import os
 import json
 from tqdm import tqdm
+from bs4 import BeautifulSoup
 import pdcast as pdc
 
 
@@ -80,9 +81,15 @@ def concatenate_podcasts():
     return podcasts
 
 
-def read_podcasts(n_parts=10):
+def read_podcasts(n_parts=10, concatenate=False):
     if os.path.exists(data_dir + 'feathers/podcasts.feather'):
         podcasts = pd.read_feather(data_dir + 'feathers/podcasts.feather')
+        return podcasts
+    elif not concatenate and os.path.exists(data_dir + 'feathers/podcasts_0.feather'):
+        parts = [pd.read_feather(data_dir + 'feathers/podcasts_' + str(i) + '.feather') for i in range(n_parts)]
+        podcasts = pd.DataFrame()
+        for part in parts:
+            podcasts = pd.concat([podcasts, part])
         return podcasts
     metadata = read_metadata()
     podcasts = []
@@ -106,7 +113,9 @@ def read_podcasts(n_parts=10):
             podcasts_df.to_feather(data_dir + 'feathers/podcasts_' + str(part) + '.feather')
             part += 1
             del podcasts_df
-    return concatenate_podcasts()
+    if concatenate:
+        return concatenate_podcasts()
+    return read_podcasts(n_parts, False)
 
 
 def split_metadata():
@@ -141,6 +150,77 @@ def split_transcripts_metadata():
     split_transcripts()
 
 
+def write_json():
+    transcripts = read_transcripts()
+    transcripts = transcripts[['id', 'text']]
+    transcripts.rename(columns={'id': 'id', 'text': 'contents'}, inplace=True)
+    with open(data_dir + 'all_text.json', 'w') as f:
+        for record in tqdm(transcripts.to_dict(orient='records')):
+            json.dump(record, f)
+            f.write('\n')
+
+
+def read_queries(test=False):
+    if test:
+        location = data_dir + 'queries/podcasts_2020_topics_test.xml'
+    else:
+        location = data_dir + 'queries/podcasts_2020_topics_train.xml'
+    with open(location, 'r') as f:
+        data = f.read()
+    bs_data = BeautifulSoup(data, "xml")
+    topics = bs_data.find_all('topic')
+
+    topic_dicts = []
+    for topic in topics:
+        id = int(topic.find('num').text)
+        query = topic.find('query').text
+        description = topic.find('description').text
+        type = topic.find('type').text
+        topic_dict = {
+            'id': id,
+            'query': query,
+            'description': description,
+            'type': type}
+        topic_dicts.append(topic_dict)
+    return topic_dicts
+
+
+def read_qrels(test=False):
+    if test:
+        location = data_dir + 'queries/2020_test_qrels.list.txt'
+    else:
+        location = data_dir + 'queries/2020_train_qrels.list.txt'
+    with open(location, 'r') as f:
+        data = f.readlines()
+    data = [line.strip().split() for line in data]
+    qrels_dicts = []
+    for line in data:
+        relevance = int(line[3])
+        episode = line[2]
+        episode = episode.split('_')
+        time = float(episode[1])
+        episode = episode[0].split(':')[2]
+        id = int(line[0])
+        qrels_dict = {
+            'id': int(line[0]),
+            'episode_filename_prefix': episode,
+            'time': time,
+            'relevance': relevance
+        }
+        qrels_dicts.append(qrels_dict)
+        print(qrels_dict)
+    return qrels_dicts
+
+
 if __name__ == '__main__':
-    read_podcasts(10)
-    split_transcripts_metadata()
+    # podcasts = read_podcasts(10)
+    # print(podcasts.head())
+    # print(podcasts.info())
+
+    # write_json()
+
+    # split_transcripts_metadata()
+
+    print(read_metadata().head())
+    read_queries()
+    read_qrels()
