@@ -208,7 +208,6 @@ def read_qrels(test=False):
             'relevance': relevance
         }
         qrels_dicts.append(qrels_dict)
-        print(qrels_dict)
     return qrels_dicts
 
 
