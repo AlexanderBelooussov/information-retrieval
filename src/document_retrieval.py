@@ -8,7 +8,23 @@ from sklearn.metrics import ndcg_score
 from keybert import KeyBERT
 
 
-def get_relevant_documents_query(query, k=100):
+def get_relevant_documents_query(input_query, k=100, use_keybert=True, use_description=True):
+    if use_keybert:
+        kw_model = KeyBERT(model="all-MiniLM-L6-v2")
+        query_str = input_query['query']
+        if use_description:
+            query_str += '. ' + input_query['description']
+        keywords = kw_model.extract_keywords(query_str, keyphrase_ngram_range=(1, 1), stop_words='english', top_n=5)
+
+        boolean_query_builder = querybuilder.get_boolean_query_builder()
+        should = querybuilder.JBooleanClauseOccur['should'].value
+        for keyword in keywords:
+            boost = querybuilder.get_boost_query(querybuilder.get_term_query(keyword[0]), keyword[1])
+            boolean_query_builder.add(boost, should)
+        query = boolean_query_builder.build()
+    else:
+        query = input_query['query']
+
     searcher = LuceneSearcher(data_dir + 'podcast_collection_jsonl')
     searcher.set_bm25(0.9, 0.4)
     # searcher.set_rm3(10, 10, 0.5)
@@ -21,22 +37,9 @@ def get_relevant_documents_query(query, k=100):
 def get_relevant_documents(test=False, k=100, use_keybert=True, use_description=True):
     queries = read_queries(test)
     for query in queries:
-        if use_keybert:
-            kw_model = KeyBERT(model="all-MiniLM-L6-v2")
-            query_str = query['query']
-            if use_description:
-                query_str += '. ' + query['description']
-            keywords = kw_model.extract_keywords(query_str, keyphrase_ngram_range=(1, 1), stop_words='english', top_n=5)
-
-            boolean_query_builder = querybuilder.get_boolean_query_builder()
-            should = querybuilder.JBooleanClauseOccur['should'].value
-            for keyword in keywords:
-                boost = querybuilder.get_boost_query(querybuilder.get_term_query(keyword[0]), keyword[1])
-                boolean_query_builder.add(boost, should)
-            kw_query = boolean_query_builder.build()
-            query['docs'], query['scores'] = get_relevant_documents_query(kw_query, k)
-        else:
-            query['docs'], query['scores'] = get_relevant_documents_query(query['query'], k)
+        docs, scores = get_relevant_documents_query(query, k, use_keybert, use_description)
+        query['docs'] = docs
+        query['scores'] = scores
     # print(queries)
     return queries
 
