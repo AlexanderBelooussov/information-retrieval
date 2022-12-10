@@ -8,13 +8,15 @@ from sklearn.metrics import ndcg_score
 from keybert import KeyBERT
 
 
-def get_relevant_documents_query(input_query, k=100, use_keybert=True, use_description=True):
+INDEX_TYPES = ['text', 'episode_info', 'show_episode_info']
+
+def get_relevant_documents_query(input_query, k=100, use_keybert=True, use_description=True, index_type='text', n_grams=1):
     if use_keybert:
         kw_model = KeyBERT(model="all-MiniLM-L6-v2")
         query_str = input_query['query']
         if use_description:
             query_str += '. ' + input_query['description']
-        keywords = kw_model.extract_keywords(query_str, keyphrase_ngram_range=(1, 1), stop_words='english', top_n=5)
+        keywords = kw_model.extract_keywords(query_str, keyphrase_ngram_range=(1, n_grams), stop_words='english', top_n=5)
 
         boolean_query_builder = querybuilder.get_boolean_query_builder()
         should = querybuilder.JBooleanClauseOccur['should'].value
@@ -25,7 +27,14 @@ def get_relevant_documents_query(input_query, k=100, use_keybert=True, use_descr
     else:
         query = input_query['query']
 
-    searcher = LuceneSearcher(data_dir + 'podcast_collection_jsonl')
+    index_dir = data_dir
+    if index_type == 'text':
+        index_dir += 'all_text_index'
+    elif index_type == 'episode_info':
+        index_dir += 'text_ep_desc_title_index'
+    elif index_type == 'show_episode_info':
+        index_dir += 'text_show_ep_title_desc_index'
+    searcher = LuceneSearcher(index_dir)
     searcher.set_bm25(0.9, 0.4)
     # searcher.set_rm3(10, 10, 0.5)
     hits = searcher.search(query, k=k)
@@ -34,10 +43,10 @@ def get_relevant_documents_query(input_query, k=100, use_keybert=True, use_descr
     return docs, scores
 
 
-def get_relevant_documents(test=False, k=100, use_keybert=True, use_description=True):
+def get_relevant_documents(test=False, k=100, use_keybert=True, use_description=True, index_type='text', n_grams=1):
     queries = read_queries(test)
     for query in queries:
-        docs, scores = get_relevant_documents_query(query, k, use_keybert, use_description)
+        docs, scores = get_relevant_documents_query(query, k, use_keybert, use_description, index_type, n_grams)
         query['docs'] = docs
         query['scores'] = scores
     # print(queries)
@@ -65,17 +74,23 @@ def score_relevant_documents(query_results):
         # ndcg
         relevance = query['scores']
         query_qrels = [qrel for qrel in qrles if qrel['id'] == id]
+        # delete duplicates, keep the highest relevance
+        query_qrels = sorted(query_qrels, key=lambda x: x['relevance'], reverse=True)
+        filtered_qrels = []
+        for qrel in query_qrels:
+            if qrel['episode_filename_prefix'] not in [q['episode_filename_prefix'] for q in filtered_qrels]:
+                filtered_qrels.append(qrel)
+        query_qrels = filtered_qrels
         qrels_docs = [qrel['episode_filename_prefix'] for qrel in query_qrels]
         qrels_docs = [metadata[metadata['episode_filename_prefix'] == doc]['id'].to_numpy()[0] for doc in qrels_docs]
-        true_relevances = [qrel['relevance'] for qrel in query_qrels]
+        found_docs = query['docs']
         true_relevance = []
-        for doc in query['docs']:
+        for doc in found_docs:
             if doc in qrels_docs:
-                # find index of doc in qrels_docs
-                index = qrels_docs.index(doc)
-                true_relevance.append(true_relevances[index])
+                true_relevance.append(query_qrels[qrels_docs.index(doc)]['relevance'])
             else:
                 true_relevance.append(0)
+
         ndcg = ndcg_score([true_relevance], [relevance])
         ndcgs.append(ndcg)
     recalls = [np.mean(recalls[i]) for i in range(5)]
@@ -84,7 +99,7 @@ def score_relevant_documents(query_results):
     return recalls, np.mean(ndcgs)
 
 
-def find_best_k(use_keybert=True, use_description=True):
+def find_best_k(use_keybert=True, use_description=True, index_type='text', n_grams=1):
     ks = np.logspace(start=1, stop=5, num=15, base=10, dtype=int).tolist()
     # ks = [10, 25]
     print(ks)
@@ -92,7 +107,7 @@ def find_best_k(use_keybert=True, use_description=True):
     k_ndcgs = []
     for k in ks:
         print(f'k={k}')
-        recalls, ndcg = score_relevant_documents(get_relevant_documents(False, k, use_keybert, use_description))
+        recalls, ndcg = score_relevant_documents(get_relevant_documents(False, k, use_keybert, use_description, index_type, n_grams))
         k_recalls.append(recalls)
         k_ndcgs.append(ndcg)
 
@@ -106,6 +121,8 @@ def find_best_k(use_keybert=True, use_description=True):
         title += ' with KeyBERT'
         if use_description:
             title += ' using description'
+        title += f' n_grams={n_grams}'
+    title += f'\nindex_type={index_type}'
     plt.title(title)
     plt.xscale('log')
     plt.legend()
@@ -113,6 +130,9 @@ def find_best_k(use_keybert=True, use_description=True):
 
 
 if __name__ == '__main__':
-    find_best_k(False, False)
-    find_best_k(True, False)
-    find_best_k(True, True)
+    # find_best_k(False, False, 'episode_info', 1)
+    # find_best_k(True, False, 'episode_info', 1)
+    # find_best_k(True, True, 'episode_info', 1)
+    # find_best_k(False, False, 'show_episode_info', 1)
+    find_best_k(True, False, 'show_episode_info', 2)
+    find_best_k(True, True, 'show_episode_info', 2)

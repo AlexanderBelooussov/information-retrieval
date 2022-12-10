@@ -6,6 +6,7 @@ import json
 from tqdm import tqdm
 from bs4 import BeautifulSoup
 import pdcast as pdc
+import pickle
 
 
 pd.options.display.max_columns = None
@@ -150,22 +151,64 @@ def split_transcripts_metadata():
     split_transcripts()
 
 
-def write_json():
-    transcripts = read_transcripts()
-    transcripts = transcripts[['id', 'text']]
-    transcripts.rename(columns={'id': 'id', 'text': 'contents'}, inplace=True)
-    with open(data_dir + 'all_text.json', 'w') as f:
-        for record in tqdm(transcripts.to_dict(orient='records')):
-            json.dump(record, f)
-            f.write('\n')
+def make_indices():
+    if not os.path.exists('data/all_text_index'):
+        transcripts = read_transcripts()
+        transcripts = transcripts[['id', 'text']]
+        transcripts.rename(columns={'id': 'id', 'text': 'contents'}, inplace=True)
+        try:
+            os.mkdir(data_dir + 'jsonl/all_text')
+        except FileExistsError:
+            pass
+        with open(data_dir + 'jsonl/all_text/all_text.json', 'w', encoding='utf-8') as f:
+            for record in tqdm(transcripts.to_dict(orient='records')):
+                json.dump(record, f)
+                f.write('\n')
+        os.system(f"python -m pyserini.index.lucene --collection JsonCollection --input data/jsonl/all_text  --index data/all_text_index --generator DefaultLuceneDocumentGenerator --threads 1 --storePositions --storeDocvectors --storeRaw")
 
+    if not os.path.exists('data/text_ep_desc_title_index'):
+        try:
+            os.mkdir(data_dir + 'jsonl/text_ep_desc_title')
+        except FileExistsError:
+            pass
+        transcripts = read_podcasts()
+        transcripts = transcripts[['text', 'ep_description', 'episode_name']]
+        transcripts['ep_description'] = transcripts['ep_description'].fillna('')
+        transcripts['episode_name'] = transcripts['episode_name'].fillna('')
+        transcripts['contents'] = transcripts['episode_name'] + ' | ' + transcripts['ep_description'] + ' | ' + transcripts['text']
+        transcripts = transcripts[['contents']].reset_index(drop=False).rename(columns={'index': 'id'})
+        with open(data_dir + 'jsonl/text_ep_desc_title/text_ep_desc_title.json', 'w', encoding='utf-8') as f:
+            for record in tqdm(transcripts.to_dict(orient='records')):
+                json.dump(record, f)
+                f.write('\n')
+        os.system(
+            f"python -m pyserini.index.lucene --collection JsonCollection --input data/jsonl/text_ep_desc_title  --index data/text_ep_desc_title_index --generator DefaultLuceneDocumentGenerator --threads 1 --storePositions --storeDocvectors --storeRaw")
+
+    if not os.path.exists('data/text_show_ep_title_desc_index'):
+        try:
+            os.mkdir(data_dir + 'jsonl/text_show_ep_title_desc')
+        except FileExistsError:
+            pass
+        transcripts = read_podcasts()
+        transcripts = transcripts[['text', 'ep_description', 'episode_name', 'show_name', 'show_description']]
+        transcripts['ep_description'] = transcripts['ep_description'].fillna('')
+        transcripts['episode_name'] = transcripts['episode_name'].fillna('')
+        transcripts['show_description'] = transcripts['show_description'].fillna('')
+        transcripts['show_name'] = transcripts['show_name'].fillna('')
+        transcripts['contents'] = transcripts['show_name'] + ' | ' + transcripts['show_description'] + ' | ' + transcripts['episode_name'] + ' | ' + transcripts['ep_description'] + ' | ' + transcripts['text']
+        transcripts = transcripts[['contents']].reset_index(drop=False).rename(columns={'index': 'id'})
+        with open(data_dir + 'jsonl/text_show_ep_title_desc/text_show_ep_title_desc.json', 'w', encoding='utf-8') as f:
+            for record in tqdm(transcripts.to_dict(orient='records')):
+                json.dump(record, f)
+                f.write('\n')
+        os.system(f"python -m pyserini.index.lucene --collection JsonCollection --input data/jsonl/text_show_ep_title_desc  --index data/text_show_ep_title_desc_index --generator DefaultLuceneDocumentGenerator --threads 1 --storePositions --storeDocvectors --storeRaw")
 
 def read_queries(test=False):
     if test:
         location = data_dir + 'queries/podcasts_2020_topics_test.xml'
     else:
         location = data_dir + 'queries/podcasts_2020_topics_train.xml'
-    with open(location, 'r') as f:
+    with open(location, 'r', encoding='utf-8') as f:
         data = f.read()
     bs_data = BeautifulSoup(data, "xml")
     topics = bs_data.find_all('topic')
@@ -200,7 +243,6 @@ def read_qrels(test=False):
         episode = episode.split('_')
         time = float(episode[1])
         episode = episode[0].split(':')[2]
-        id = int(line[0])
         qrels_dict = {
             'id': int(line[0]),
             'episode_filename_prefix': episode,
@@ -212,14 +254,4 @@ def read_qrels(test=False):
 
 
 if __name__ == '__main__':
-    # podcasts = read_podcasts(10)
-    # print(podcasts.head())
-    # print(podcasts.info())
-
-    # write_json()
-
-    # split_transcripts_metadata()
-
-    print(read_metadata().head())
-    read_queries()
-    read_qrels()
+    make_indices()
