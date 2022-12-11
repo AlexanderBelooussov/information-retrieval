@@ -153,54 +153,57 @@ def split_transcripts_metadata():
 
 def make_indices():
     if not os.path.exists('data/all_text_index'):
-        transcripts = read_transcripts()
-        transcripts = transcripts[['id', 'text']]
-        transcripts.rename(columns={'id': 'id', 'text': 'contents'}, inplace=True)
         try:
             os.mkdir(data_dir + 'jsonl/all_text')
         except FileExistsError:
             pass
-        with open(data_dir + 'jsonl/all_text/all_text.json', 'w', encoding='utf-8') as f:
-            for record in tqdm(transcripts.to_dict(orient='records')):
-                json.dump(record, f)
-                f.write('\n')
+        if not os.path.exists('data/jsonl/all_text/all_text.json'):
+            transcripts = read_transcripts()
+            transcripts = transcripts[['id', 'text']]
+            transcripts.rename(columns={'id': 'id', 'text': 'contents'}, inplace=True)
+            with open(data_dir + 'jsonl/all_text/all_text.json', 'w', encoding='utf-8') as f:
+                for record in tqdm(transcripts.to_dict(orient='records')):
+                    json.dump(record, f)
+                    f.write('\n')
         os.system(f"python -m pyserini.index.lucene --collection JsonCollection --input data/jsonl/all_text  --index data/all_text_index --generator DefaultLuceneDocumentGenerator --threads 1 --storePositions --storeDocvectors --storeRaw")
 
     if not os.path.exists('data/text_ep_desc_title_index'):
         try:
-            os.mkdir(data_dir + 'jsonl/text_ep_desc_title')
+            os.mkdir(data_dir + 'jsonl/text_ep_title_desc')
         except FileExistsError:
             pass
-        transcripts = read_podcasts()
-        transcripts = transcripts[['text', 'ep_description', 'episode_name']]
-        transcripts['ep_description'] = transcripts['ep_description'].fillna('')
-        transcripts['episode_name'] = transcripts['episode_name'].fillna('')
-        transcripts['contents'] = transcripts['episode_name'] + ' | ' + transcripts['ep_description'] + ' | ' + transcripts['text']
-        transcripts = transcripts[['contents']].reset_index(drop=False).rename(columns={'index': 'id'})
-        with open(data_dir + 'jsonl/text_ep_desc_title/text_ep_desc_title.json', 'w', encoding='utf-8') as f:
-            for record in tqdm(transcripts.to_dict(orient='records')):
-                json.dump(record, f)
-                f.write('\n')
+        if not os.path.exists('data/jsonl/text_ep_title_desc/text_ep_title_desc.json'):
+            transcripts = read_podcasts()
+            transcripts = transcripts[['text', 'ep_description', 'episode_name']]
+            transcripts['ep_description'] = transcripts['ep_description'].fillna('')
+            transcripts['episode_name'] = transcripts['episode_name'].fillna('')
+            transcripts['contents'] = transcripts['episode_name'] + ' | ' + transcripts['ep_description'] + ' | ' + transcripts['text']
+            transcripts = transcripts[['contents']].reset_index(drop=False).rename(columns={'index': 'id'})
+            with open(data_dir + 'jsonl/text_ep_title_desc/text_ep_title_desc.json', 'w', encoding='utf-8') as f:
+                for record in tqdm(transcripts.to_dict(orient='records')):
+                    json.dump(record, f)
+                    f.write('\n')
         os.system(
-            f"python -m pyserini.index.lucene --collection JsonCollection --input data/jsonl/text_ep_desc_title  --index data/text_ep_desc_title_index --generator DefaultLuceneDocumentGenerator --threads 1 --storePositions --storeDocvectors --storeRaw")
+            f"python -m pyserini.index.lucene --collection JsonCollection --input data/jsonl/text_ep_title_desc  --index data/text_ep_desc_title_index --generator DefaultLuceneDocumentGenerator --threads 1 --storePositions --storeDocvectors --storeRaw")
 
     if not os.path.exists('data/text_show_ep_title_desc_index'):
         try:
             os.mkdir(data_dir + 'jsonl/text_show_ep_title_desc')
         except FileExistsError:
             pass
-        transcripts = read_podcasts()
-        transcripts = transcripts[['text', 'ep_description', 'episode_name', 'show_name', 'show_description']]
-        transcripts['ep_description'] = transcripts['ep_description'].fillna('')
-        transcripts['episode_name'] = transcripts['episode_name'].fillna('')
-        transcripts['show_description'] = transcripts['show_description'].fillna('')
-        transcripts['show_name'] = transcripts['show_name'].fillna('')
-        transcripts['contents'] = transcripts['show_name'] + ' | ' + transcripts['show_description'] + ' | ' + transcripts['episode_name'] + ' | ' + transcripts['ep_description'] + ' | ' + transcripts['text']
-        transcripts = transcripts[['contents']].reset_index(drop=False).rename(columns={'index': 'id'})
-        with open(data_dir + 'jsonl/text_show_ep_title_desc/text_show_ep_title_desc.json', 'w', encoding='utf-8') as f:
-            for record in tqdm(transcripts.to_dict(orient='records')):
-                json.dump(record, f)
-                f.write('\n')
+        if not os.path.exists('data/jsonl/text_show_ep_title_desc/text_show_ep_title_desc.json'):
+            transcripts = read_podcasts()
+            transcripts = transcripts[['text', 'ep_description', 'episode_name', 'show_name', 'show_description']]
+            transcripts['ep_description'] = transcripts['ep_description'].fillna('')
+            transcripts['episode_name'] = transcripts['episode_name'].fillna('')
+            transcripts['show_description'] = transcripts['show_description'].fillna('')
+            transcripts['show_name'] = transcripts['show_name'].fillna('')
+            transcripts['contents'] = transcripts['show_name'] + ' | ' + transcripts['show_description'] + ' | ' + transcripts['episode_name'] + ' | ' + transcripts['ep_description'] + ' | ' + transcripts['text']
+            transcripts = transcripts[['contents']].reset_index(drop=False).rename(columns={'index': 'id'})
+            with open(data_dir + 'jsonl/text_show_ep_title_desc/text_show_ep_title_desc.json', 'w', encoding='utf-8') as f:
+                for record in tqdm(transcripts.to_dict(orient='records')):
+                    json.dump(record, f)
+                    f.write('\n')
         os.system(f"python -m pyserini.index.lucene --collection JsonCollection --input data/jsonl/text_show_ep_title_desc  --index data/text_show_ep_title_desc_index --generator DefaultLuceneDocumentGenerator --threads 1 --storePositions --storeDocvectors --storeRaw")
 
 def read_queries(test=False):
