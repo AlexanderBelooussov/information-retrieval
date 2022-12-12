@@ -10,13 +10,14 @@ from tqdm import tqdm
 from sklearn.metrics import ndcg_score, dcg_score
 
 
-def process_query(query, transcripts, q_rels, doc_k=100, seg_k=50, verbose=0):
-    relevant_docs, _ = get_relevant_documents_query(query, k=doc_k, use_keybert=True, use_description=True)
+def process_query(query, transcripts, q_rels, doc_k=100, seg_k=50, n_grams=1, verbose=0):
+    relevant_docs, _ = get_relevant_documents_query(query, k=doc_k, use_keybert=True, use_description=True,
+                                                    index_type='show_episode_info', n_grams=n_grams)
     relevant_docs = [transcripts[doc] for doc in relevant_docs]
     split_transcripts = []
     for doc in relevant_docs:
         split_transcripts.extend(split_transcript(doc))
-    top_k = retrieve_segments(query, split_transcripts, k=seg_k, verbose=verbose)
+    top_k = retrieve_segments(query, split_transcripts, k=seg_k, n_grams=n_grams, verbose=verbose)
 
     # evaluate results
     scores = []
@@ -59,7 +60,7 @@ def process_query(query, transcripts, q_rels, doc_k=100, seg_k=50, verbose=0):
     return ndcg, ndcg10, ndcg20
 
 
-def process_query_type(type, podcasts, queries, q_rels, doc_k=100, seg_k=50, verbose=0):
+def process_query_type(type, podcasts, queries, q_rels, doc_k=100, seg_k=50, n_grams=1, verbose=0):
     ndcgs = []
     ndcg10s = []
     ndcg20s = []
@@ -72,7 +73,8 @@ def process_query_type(type, podcasts, queries, q_rels, doc_k=100, seg_k=50, ver
         ndcg, ndcg10, ndcg20 = process_query(query, podcasts, relevant_q_rels,
                                              doc_k=doc_k,
                                              seg_k=seg_k,
-                                             verbose=verbose)
+                                             verbose=verbose,
+                                             n_grams=n_grams)
         ndcgs.append(ndcg)
         ndcg10s.append(ndcg10)
         ndcg20s.append(ndcg20)
@@ -85,7 +87,7 @@ def process_query_type(type, podcasts, queries, q_rels, doc_k=100, seg_k=50, ver
     return ndcgs, ndcg10s, ndcg20s
 
 
-def process_all_queries(podcasts, queries, q_rels, doc_k=100, seg_k=50, verbose=0):
+def process_all_queries(podcasts, queries, q_rels, doc_k=100, seg_k=50, n_grams=1, verbose=0):
     now = datetime.now()
     ndcgs_all = []
     ndcg10s_all = []
@@ -94,7 +96,8 @@ def process_all_queries(podcasts, queries, q_rels, doc_k=100, seg_k=50, verbose=
         ndcgs, ndcg10s, ndcg20s = process_query_type(type, podcasts, queries, q_rels,
                                                      doc_k=doc_k,
                                                      seg_k=seg_k,
-                                                     verbose=verbose)
+                                                     verbose=verbose,
+                                                     n_grams=n_grams)
         ndcgs_all.extend(ndcgs)
         ndcg10s_all.extend(ndcg10s)
         ndcg20s_all.extend(ndcg20s)
@@ -114,6 +117,7 @@ if __name__ == '__main__':
     parser.add_argument('--verbose', type=int, default=1)
     parser.add_argument('--query', type=int, default=0)
     parser.add_argument('--query_type', type=str, default='all')
+    parser.add_argument('--n_grams', type=int, default=1)
     args = parser.parse_args()
 
     assert args.query_type in ['all', 'topical', 'refinding', 'known item']
@@ -131,7 +135,8 @@ if __name__ == '__main__':
                 ndcg, ndcg10, ndcg20 = process_query(query, podcasts, relevant_q_rels,
                                                      doc_k=args.doc_k,
                                                      seg_k=args.seg_k,
-                                                     verbose=verbose)
+                                                     verbose=verbose,
+                                                     n_grams=args.n_grams)
                 print(f"Query {query['id']}, {query['query']}: {ndcg}, {ndcg10}, {ndcg20}")
                 break
 
@@ -139,9 +144,11 @@ if __name__ == '__main__':
         process_query_type(args.query_type, podcasts, all_queries, q_rels,
                            doc_k=args.doc_k,
                            seg_k=args.seg_k,
-                           verbose=verbose)
+                           verbose=verbose,
+                           n_grams=args.n_grams)
     else:
         process_all_queries(podcasts, all_queries, q_rels,
                             doc_k=args.doc_k,
                             seg_k=args.seg_k,
-                            verbose=verbose)
+                            verbose=verbose,
+                            n_grams=args.n_grams)

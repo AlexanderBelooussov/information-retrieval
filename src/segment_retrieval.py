@@ -25,13 +25,13 @@ def split_transcript(transcript):
     return splits
 
 
-def retrieve_segments(query, split_transcripts, use_description=True, k=50, n=25, verbose=0):
+def retrieve_segments(query, split_transcripts, use_description=True, k=50, n=25, n_grams=1, verbose=0):
     kw_model = KeyBERT(model="all-MiniLM-L6-v2")
     if use_description:
         q = query['query'] + '. ' + query['description']
     else:
         q = query['query']
-    q_keywords = dict(kw_model.extract_keywords(q, keyphrase_ngram_range=(1, 1), stop_words='english', top_n=n))
+    q_keywords = dict(kw_model.extract_keywords(q, keyphrase_ngram_range=(1, n_grams), stop_words='english', top_n=n))
     # make relevance of query keywords 1
     # for word in query['query'].split():
     #     q_keywords[word] = 1
@@ -41,11 +41,11 @@ def retrieve_segments(query, split_transcripts, use_description=True, k=50, n=25
     scores = []
     for transcript in tqdm(split_transcripts, desc=f"Retrieving segments for query {query['id']}", leave=verbose == 2, disable=verbose == 0):
         text = transcript['text']
-        # tc_keywords = dict(kw_model.extract_keywords(text, keyphrase_ngram_range=(1, 1), stop_words='english', top_n=n))
+        # tc_keywords = dict(kw_model.extract_keywords(text, keyphrase_ngram_range=(1, n_grams), stop_words='english', top_n=n))
         # TODO: test these options
-        tc_keywords = dict(kw_model.extract_keywords(text, keyphrase_ngram_range=(1, 1), stop_words='english', top_n=n,
+        tc_keywords = dict(kw_model.extract_keywords(text, keyphrase_ngram_range=(1, n_grams), stop_words='english', top_n=n,
                                                      candidates=q_keywords.keys()))
-        # tc_keywords = dict(kw_model.extract_keywords(text, keyphrase_ngram_range=(1, 1), stop_words='english', top_n=n,
+        # tc_keywords = dict(kw_model.extract_keywords(text, keyphrase_ngram_range=(1, n_grams), stop_words='english', top_n=n,
         #                                              seed_keywords=q_keywords.keys()))
         keyword_intersection = set(q_keywords.keys()).intersection(set(tc_keywords.keys()))
         score = sum([q_keywords[k] * tc_keywords[k] for k in keyword_intersection])
