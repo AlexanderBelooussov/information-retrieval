@@ -111,8 +111,8 @@ def score_relevant_documents(query_results):
 
 
 def find_best_k(use_keybert=True, use_description=True, index_type='text', n_grams=1):
-    ks = np.logspace(start=1, stop=5, num=15, base=10, dtype=int).tolist()
-    # ks = [10, 25]
+    # ks = np.logspace(start=1, stop=4, num=15, base=10, dtype=int).tolist()
+    ks = [10, 20, 30]
     print(ks)
     k_recalls = []
     k_fprs = []
@@ -157,5 +157,5 @@ if __name__ == '__main__':
     # find_best_k(True, True, 'episode_info', 1)
     # find_best_k(False, False, 'show_episode_info', 1)
     # find_best_k(True, False, 'show_episode_info', 2)
-    find_best_k(True, True, 'show_episode_info', 2)
+    # find_best_k(True, True, 'show_episode_info', 2)
     find_best_k(True, True, 'show_episode_info', 3)

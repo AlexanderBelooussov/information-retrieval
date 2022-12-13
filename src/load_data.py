@@ -8,12 +8,11 @@ from bs4 import BeautifulSoup
 import pdcast as pdc
 import pickle
 
-
 pd.options.display.max_columns = None
 pd.options.display.max_rows = None
 pd.options.display.max_colwidth = 100
 pd.options.display.width = None
-data_dir = '../data/'
+data_dir = 'data/'
 
 
 # read metadata.tsv
@@ -22,6 +21,12 @@ def read_metadata():
         metadata = pd.read_feather(data_dir + 'feathers/metadata.feather')
     else:
         metadata = pd.read_csv(data_dir + 'spotify-podcasts-2020/metadata.tsv', sep='\t')
+        metadata = metadata.reset_index(drop=False).rename(
+            columns={'index': 'id', "episode_description": "ep_description"})
+        metadata = metadata[
+            ['id', 'show_name', 'show_description', 'episode_name', 'ep_description', 'show_filename_prefix',
+             'episode_filename_prefix']]
+        metadata['id'] = pd.to_numeric(metadata['id'], downcast='integer')
         metadata.to_feather(data_dir + 'feathers/metadata.feather')
     return metadata
 
@@ -66,9 +71,10 @@ def concatenate_podcasts():
         print(all_parts)
         for i in range(0, len(all_parts), 2):
             if i + 1 < len(all_parts):
-                print(f"Concatenating {all_parts[i]} and {all_parts[i+1]}")
+                print(f"Concatenating {all_parts[i]} and {all_parts[i + 1]}")
                 concatenation = pd.concat([pd.read_feather(data_dir + 'feathers/' + all_parts[i]),
-                                        pd.read_feather(data_dir + 'feathers/' + all_parts[i + 1])]).reset_index(drop=True)
+                                           pd.read_feather(data_dir + 'feathers/' + all_parts[i + 1])]).reset_index(
+                    drop=True)
                 name1 = all_parts[i].split('.')[0]
                 name2 = all_parts[i + 1].split('.')[0]
                 concatenation.to_feather(data_dir + 'feathers/' + name1 + '_' + name2 + '.feather', chunksize=1000)
@@ -165,7 +171,8 @@ def make_indices():
                 for record in tqdm(transcripts.to_dict(orient='records')):
                     json.dump(record, f)
                     f.write('\n')
-        os.system(f"python -m pyserini.index.lucene --collection JsonCollection --input data/jsonl/all_text  --index data/all_text_index --generator DefaultLuceneDocumentGenerator --threads 1 --storePositions --storeDocvectors --storeRaw")
+        os.system(
+            f"python -m pyserini.index.lucene --collection JsonCollection --input data/jsonl/all_text  --index data/all_text_index --generator DefaultLuceneDocumentGenerator --threads 1 --storePositions --storeDocvectors --storeRaw")
 
     if not os.path.exists('data/text_ep_desc_title_index'):
         try:
@@ -177,7 +184,8 @@ def make_indices():
             transcripts = transcripts[['text', 'ep_description', 'episode_name']]
             transcripts['ep_description'] = transcripts['ep_description'].fillna('')
             transcripts['episode_name'] = transcripts['episode_name'].fillna('')
-            transcripts['contents'] = transcripts['episode_name'] + ' | ' + transcripts['ep_description'] + ' | ' + transcripts['text']
+            transcripts['contents'] = transcripts['episode_name'] + ' | ' + transcripts['ep_description'] + ' | ' + \
+                                      transcripts['text']
             transcripts = transcripts[['contents']].reset_index(drop=False).rename(columns={'index': 'id'})
             with open(data_dir + 'jsonl/text_ep_title_desc/text_ep_title_desc.json', 'w', encoding='utf-8') as f:
                 for record in tqdm(transcripts.to_dict(orient='records')):
@@ -198,13 +206,18 @@ def make_indices():
             transcripts['episode_name'] = transcripts['episode_name'].fillna('')
             transcripts['show_description'] = transcripts['show_description'].fillna('')
             transcripts['show_name'] = transcripts['show_name'].fillna('')
-            transcripts['contents'] = transcripts['show_name'] + ' | ' + transcripts['show_description'] + ' | ' + transcripts['episode_name'] + ' | ' + transcripts['ep_description'] + ' | ' + transcripts['text']
+            transcripts['contents'] = transcripts['show_name'] + ' | ' + transcripts['show_description'] + ' | ' + \
+                                      transcripts['episode_name'] + ' | ' + transcripts['ep_description'] + ' | ' + \
+                                      transcripts['text']
             transcripts = transcripts[['contents']].reset_index(drop=False).rename(columns={'index': 'id'})
-            with open(data_dir + 'jsonl/text_show_ep_title_desc/text_show_ep_title_desc.json', 'w', encoding='utf-8') as f:
+            with open(data_dir + 'jsonl/text_show_ep_title_desc/text_show_ep_title_desc.json', 'w',
+                      encoding='utf-8') as f:
                 for record in tqdm(transcripts.to_dict(orient='records')):
                     json.dump(record, f)
                     f.write('\n')
-        os.system(f"python -m pyserini.index.lucene --collection JsonCollection --input data/jsonl/text_show_ep_title_desc  --index data/text_show_ep_title_desc_index --generator DefaultLuceneDocumentGenerator --threads 1 --storePositions --storeDocvectors --storeRaw")
+        os.system(
+            f"python -m pyserini.index.lucene --collection JsonCollection --input data/jsonl/text_show_ep_title_desc  --index data/text_show_ep_title_desc_index --generator DefaultLuceneDocumentGenerator --threads 1 --storePositions --storeDocvectors --storeRaw")
+
 
 def read_queries(test=False):
     if test:
