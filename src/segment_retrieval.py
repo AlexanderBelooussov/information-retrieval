@@ -1,29 +1,9 @@
 from tqdm import tqdm
 
-from load_data import read_metadata, read_transcripts
+from load_data import read_metadata, read_transcripts, make_segments
 import numpy as np
 from keybert import KeyBERT
 from query_expansion import expand_query
-
-
-def split_transcript(transcript):
-    duration = transcript['start_times'][-1]
-    start_times = transcript['start_times']
-    words = transcript['words']
-    splits = []
-    for start in range(0, int(duration - 60), 60):
-        end = start + 120
-        start_index = np.where(start_times > start)[0][0]
-        start_index = max(0, start_index - 1)
-        end_index = np.where(start_times > end)
-        end_index = end_index[0][0] if len(end_index[0]) else len(start_times)
-        text = ' '.join(words[start_index:end_index])
-        split_dict = transcript.copy()
-        split_dict['text'] = text
-        split_dict['start_time'] = start
-
-        splits.append(split_dict)
-    return splits
 
 
 def retrieve_segments(query, split_transcripts, use_description=True, k=50, n=25, n_grams=1, verbose=0, query_expansion=True):
@@ -77,4 +57,4 @@ def retrieve_segments(query, split_transcripts, use_description=True, k=50, n=25
 if __name__ == '__main__':
     transcripts = read_transcripts().to_dict("records")
     for transcript in tqdm(transcripts):
-        split_transcript(transcript)
+        make_segments(transcript)

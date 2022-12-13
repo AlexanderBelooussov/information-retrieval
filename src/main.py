@@ -5,8 +5,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from document_retrieval import get_relevant_documents_query
-from load_data import read_metadata, read_queries, read_qrels, read_podcasts, read_transcripts
-from segment_retrieval import split_transcript, retrieve_segments
+from load_data import read_metadata, read_queries, read_qrels, read_podcasts, read_transcripts, make_segments
+from segment_retrieval import retrieve_segments
 from tqdm import tqdm
 from sklearn.metrics import ndcg_score, dcg_score, PrecisionRecallDisplay
 
@@ -50,7 +50,7 @@ def process_query(query, transcripts, q_rels, doc_k=100, seg_k=50, n_grams=1, ve
 
     split_transcripts = []
     for doc in retrieved_docs:
-        split_transcripts.extend(split_transcript(doc))
+        split_transcripts.extend(make_segments(doc))
     top_k = retrieve_segments(query, split_transcripts, k=seg_k, n_grams=n_grams, verbose=verbose,
                               # query_expansion=query_expansion)
                               query_expansion=False)
@@ -267,11 +267,13 @@ if __name__ == '__main__':
                            seg_k=args.seg_k,
                            verbose=verbose,
                            n_grams=args.n_grams,
-                           query_expansion=args.query_expansion)
+                           query_expansion=args.query_expansion,
+                           type_aware=args.type_aware)
     else:
         process_all_queries(podcasts, all_queries, q_rels,
                             doc_k=args.doc_k,
                             seg_k=args.seg_k,
                             verbose=verbose,
                             n_grams=args.n_grams,
-                            query_expansion=args.query_expansion)
+                            query_expansion=args.query_expansion,
+                            type_aware=args.type_aware)
