@@ -6,12 +6,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import ndcg_score
 from keybert import KeyBERT
+from query_expansion import expand_query
 
 INDEX_TYPES = ['text', 'episode_info', 'show_episode_info']
 
 
 def get_relevant_documents_query(input_query, k=100, use_keybert=True, use_description=True,
-                                 index_type='show_episode_info', n_grams=1, top_n=25):
+                                 index_type='show_episode_info', n_grams=1, top_n=25, query_expansion=True):
+    if query_expansion:
+        top_n = min(top_n, 10)  # limit keywords if using query expansion
     if use_keybert:
         kw_model = KeyBERT(model="all-MiniLM-L6-v2")
         query_str = input_query['query']
@@ -19,7 +22,13 @@ def get_relevant_documents_query(input_query, k=100, use_keybert=True, use_descr
             query_str += '. ' + input_query['description']
         keywords = kw_model.extract_keywords(query_str, keyphrase_ngram_range=(1, n_grams), stop_words='english',
                                              top_n=top_n)
-
+        if query_expansion:
+            new_keywords = {}
+            for keyword in keywords:
+                new_keywords.update(expand_query(keyword[0], keyword[1], n_grams))
+            keywords = [(k, v) for k, v in new_keywords.items()]
+            keywords = sorted(keywords, key=lambda x: x[1], reverse=True)
+            keywords = keywords[:1024]
         boolean_query_builder = querybuilder.get_boolean_query_builder()
         should = querybuilder.JBooleanClauseOccur['should'].value
         for keyword in keywords:
@@ -45,10 +54,12 @@ def get_relevant_documents_query(input_query, k=100, use_keybert=True, use_descr
     return docs, scores
 
 
-def get_relevant_documents(test=False, k=100, use_keybert=True, use_description=True, index_type='text', n_grams=1):
+def get_relevant_documents(test=False, k=100, use_keybert=True, use_description=True, index_type='text', n_grams=1,
+                           query_expansion=True):
     queries = read_queries(test)
     for query in queries:
-        docs, scores = get_relevant_documents_query(query, k, use_keybert, use_description, index_type, n_grams)
+        docs, scores = get_relevant_documents_query(query, k, use_keybert, use_description, index_type, n_grams,
+                                                    query_expansion=query_expansion)
         query['docs'] = docs
         query['scores'] = scores
     # print(queries)
@@ -56,6 +67,7 @@ def get_relevant_documents(test=False, k=100, use_keybert=True, use_description=
 
 
 def score_relevant_documents(query_results):
+    # TODO: remake with precision-recall curve
     qrles = read_qrels(False)
     metadata = read_metadata()
     recalls = [[] for i in range(5)]
@@ -110,8 +122,8 @@ def score_relevant_documents(query_results):
     return recalls, fprs, np.mean(ndcgs)
 
 
-def find_best_k(use_keybert=True, use_description=True, index_type='text', n_grams=1):
-    ks = np.logspace(start=1, stop=5, num=15, base=10, dtype=int).tolist()
+def find_best_k(use_keybert=True, use_description=True, index_type='text', n_grams=1, query_expansion=True):
+    ks = np.logspace(start=1, stop=3, num=15, base=10, dtype=int).tolist()
     # ks = [10, 25]
     print(ks)
     k_recalls = []
@@ -120,7 +132,7 @@ def find_best_k(use_keybert=True, use_description=True, index_type='text', n_gra
     for k in ks:
         print(f'k={k}')
         recalls, precisions, ndcg = score_relevant_documents(
-            get_relevant_documents(False, k, use_keybert, use_description, index_type, n_grams))
+            get_relevant_documents(False, k, use_keybert, use_description, index_type, query_expansion))
         k_recalls.append(recalls)
         k_fprs.append(precisions)
         k_ndcgs.append(ndcg)
@@ -152,10 +164,4 @@ def find_best_k(use_keybert=True, use_description=True, index_type='text', n_gra
 
 
 if __name__ == '__main__':
-    # find_best_k(False, False, 'episode_info', 1)
-    # find_best_k(True, False, 'episode_info', 1)
-    # find_best_k(True, True, 'episode_info', 1)
-    # find_best_k(False, False, 'show_episode_info', 1)
-    # find_best_k(True, False, 'show_episode_info', 2)
-    find_best_k(True, True, 'show_episode_info', 2)
-    find_best_k(True, True, 'show_episode_info', 3)
+    find_best_k(True, True, 'show_episode_info', 3, True)

@@ -35,10 +35,11 @@ def print_result(result):
     # plt.show()
 
 
-def process_query(query, transcripts, q_rels, doc_k=100, seg_k=50, n_grams=1, verbose=0):
+def process_query(query, transcripts, q_rels, doc_k=100, seg_k=50, n_grams=1, verbose=0, query_expansion=False):
     results = {}
     retrieved_docs, _ = get_relevant_documents_query(query, k=doc_k, use_keybert=True, use_description=True,
-                                                     index_type='show_episode_info', n_grams=n_grams)
+                                                     index_type='show_episode_info', n_grams=n_grams,
+                                                     query_expansion=query_expansion)
     retrieved_docs = [transcripts[doc] for doc in retrieved_docs]
     relevant_docs = [qrel['episode_filename_prefix'] for qrel in q_rels if qrel['relevance'] >= 1]
     for k in [5, 10, 25, 20, 30]:
@@ -50,7 +51,9 @@ def process_query(query, transcripts, q_rels, doc_k=100, seg_k=50, n_grams=1, ve
     split_transcripts = []
     for doc in retrieved_docs:
         split_transcripts.extend(split_transcript(doc))
-    top_k = retrieve_segments(query, split_transcripts, k=seg_k, n_grams=n_grams, verbose=verbose)
+    top_k = retrieve_segments(query, split_transcripts, k=seg_k, n_grams=n_grams, verbose=verbose,
+                              # query_expansion=query_expansion)
+                              query_expansion=False)
 
     # evaluate results
     scores = []
@@ -108,7 +111,12 @@ def process_query(query, transcripts, q_rels, doc_k=100, seg_k=50, n_grams=1, ve
     return results
 
 
-def process_query_type(type, podcasts, queries, q_rels, doc_k=100, seg_k=50, n_grams=1, verbose=0):
+def process_query_type(type, podcasts, queries, q_rels, doc_k=100, seg_k=50, n_grams=1, verbose=0, query_expansion=False,
+                       type_aware=False):
+    if type_aware and type == 'topical':
+        query_expansion = False
+    elif type_aware and type in ['refinding', 'known item']:
+        query_expansion = True
     ndcgs = []
     ndcg10s = []
     ndcg20s = []
@@ -131,7 +139,8 @@ def process_query_type(type, podcasts, queries, q_rels, doc_k=100, seg_k=50, n_g
                                      doc_k=doc_k,
                                      seg_k=seg_k,
                                      verbose=verbose,
-                                     n_grams=n_grams)
+                                     n_grams=n_grams,
+                                     query_expansion=query_expansion)
         result['total relevant'] += query_result['total relevant']
         result['total relevant retrieved'] += query_result['total relevant retrieved']
         result['total retrieved'] += query_result['total retrieved']
@@ -167,7 +176,8 @@ def process_query_type(type, podcasts, queries, q_rels, doc_k=100, seg_k=50, n_g
     return result
 
 
-def process_all_queries(podcasts, queries, q_rels, doc_k=100, seg_k=50, n_grams=1, verbose=0):
+def process_all_queries(podcasts, queries, q_rels, doc_k=100, seg_k=50, n_grams=1, verbose=0, query_expansion=False,
+                        type_aware=False):
     now = datetime.now()
     ndcgs_all = []
     ndcg10s_all = []
@@ -186,7 +196,9 @@ def process_all_queries(podcasts, queries, q_rels, doc_k=100, seg_k=50, n_grams=
                                                      doc_k=doc_k,
                                                      seg_k=seg_k,
                                                      verbose=verbose,
-                                                     n_grams=n_grams)
+                                                     n_grams=n_grams,
+                                                     query_expansion=query_expansion,
+                                                     type_aware=type_aware)
         ndcgs_all.extend(query_result['ndcgs'])
         ndcg10s_all.extend(query_result['ndcg10s'])
         ndcg20s_all.extend(query_result['ndcg20s'])
@@ -220,15 +232,22 @@ if __name__ == '__main__':
     parser.add_argument('--query', type=int, default=0)
     parser.add_argument('--query_type', type=str, default='all')
     parser.add_argument('--n_grams', type=int, default=3)
+    parser.add_argument('--query_expansion', action='store_true', default=False)
+    parser.add_argument('--type_aware', action='store_true', default=False)
+
     args = parser.parse_args()
 
     assert args.query_type in ['all', 'topical', 'refinding', 'known item']
     assert args.verbose in [0, 1, 2]
 
     verbose = args.verbose
+    if verbose:
+        print(f"Loading data...", end=' ')
     podcasts = read_podcasts().to_dict("index")
     all_queries = read_queries(test=args.test)
     q_rels = read_qrels(test=args.test)
+    if verbose:
+        print(f"\r")
 
     if args.query > 0:
         for query in all_queries:
@@ -237,8 +256,9 @@ if __name__ == '__main__':
                 result = process_query(query, podcasts, relevant_q_rels,
                                        doc_k=args.doc_k,
                                        seg_k=args.seg_k,
-                                       verbose=min(verbose, 1),
-                                       n_grams=args.n_grams)
+                                       verbose=max(verbose, 1),
+                                       n_grams=args.n_grams,
+                                       query_expansion=args.query_expansion)
                 break
 
     elif args.query_type != 'all':
@@ -246,10 +266,12 @@ if __name__ == '__main__':
                            doc_k=args.doc_k,
                            seg_k=args.seg_k,
                            verbose=verbose,
-                           n_grams=args.n_grams)
+                           n_grams=args.n_grams,
+                           query_expansion=args.query_expansion)
     else:
         process_all_queries(podcasts, all_queries, q_rels,
                             doc_k=args.doc_k,
                             seg_k=args.seg_k,
                             verbose=verbose,
-                            n_grams=args.n_grams)
+                            n_grams=args.n_grams,
+                            query_expansion=args.query_expansion)

@@ -3,6 +3,7 @@ from tqdm import tqdm
 from load_data import read_metadata, read_transcripts
 import numpy as np
 from keybert import KeyBERT
+from query_expansion import expand_query
 
 
 def split_transcript(transcript):
@@ -25,19 +26,27 @@ def split_transcript(transcript):
     return splits
 
 
-def retrieve_segments(query, split_transcripts, use_description=True, k=50, n=25, n_grams=1, verbose=0):
+def retrieve_segments(query, split_transcripts, use_description=True, k=50, n=25, n_grams=1, verbose=0, query_expansion=True):
+    if query_expansion:
+        n = min(n, 10)  # limit keywords if using query expansion
     kw_model = KeyBERT(model="all-MiniLM-L6-v2")
     if use_description:
         q = query['query'] + '. ' + query['description']
     else:
         q = query['query']
     q_keywords = dict(kw_model.extract_keywords(q, keyphrase_ngram_range=(1, n_grams), stop_words='english', top_n=n))
-    # make relevance of query keywords 1
-    # for word in query['query'].split():
-    #     q_keywords[word] = 1
     if verbose == 2:
         print(f"Query keywords: {q_keywords}")
         print(f"Amount of transcripts: {len(split_transcripts)}")
+    if query_expansion:
+        expanded_query = {}
+        for keyword in q_keywords.keys():
+            expanded_query.update(expand_query(keyword, q_keywords[keyword], n_grams))
+        if verbose == 2:
+            print(f"Expanded query: {expanded_query}")
+        # get best n * 10 keywords
+        expanded_query = dict(sorted(expanded_query.items(), key=lambda x: x[1], reverse=True)[:n * 10])
+        q_keywords = expanded_query
     scores = []
     for transcript in tqdm(split_transcripts, desc=f"Retrieving segments for query {query['id']}", leave=verbose == 2, disable=verbose == 0):
         text = transcript['text']
@@ -54,7 +63,7 @@ def retrieve_segments(query, split_transcripts, use_description=True, k=50, n=25
     # find top k using np.argmax
     top_k = sorted(scores, key=lambda x: x[1], reverse=True)[:k]
     if verbose == 2:
-        for segment, score in top_k:
+        for segment, score in top_k[:10]:
             print(f"Score: {score}")
             print(f"Start time: {segment['start_time']}")
             print(f"Text: {segment['text']}")
