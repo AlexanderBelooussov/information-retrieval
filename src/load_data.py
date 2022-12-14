@@ -1,5 +1,6 @@
 import math
 
+import numpy as np
 import pandas as pd
 import os
 import json
@@ -219,6 +220,70 @@ def make_indices():
             f"python -m pyserini.index.lucene --collection JsonCollection --input data/jsonl/text_show_ep_title_desc  --index data/text_show_ep_title_desc_index --generator DefaultLuceneDocumentGenerator --threads 1 --storePositions --storeDocvectors --storeRaw")
 
 
+def make_segment_indices():
+    if not os.path.exists('data/all_segments_index'):
+        try:
+            os.mkdir(data_dir + 'jsonl/all_segments')
+        except FileExistsError:
+            pass
+        try:
+            os.mkdir(data_dir + 'jsonl/segments_ep_title_desc')
+        except FileExistsError:
+            pass
+        try:
+            os.mkdir(data_dir + 'jsonl/segments_show_ep_title_desc')
+        except FileExistsError:
+            pass
+        if not os.path.exists('data/jsonl/all_segments/all_segments.json'):
+            transcripts = read_podcasts()
+            transcripts['episode_name'] = transcripts['episode_name'].fillna('')
+            transcripts['ep_description'] = transcripts['ep_description'].fillna('')
+            transcripts['show_name'] = transcripts['show_name'].fillna('')
+            transcripts['show_description'] = transcripts['show_description'].fillna('')
+            id_count = 1
+            segment_metadata = pd.DataFrame()
+            with open(data_dir + 'jsonl/all_segments/all_segments.json', 'w', encoding='utf-8') as f, \
+                    open(data_dir + 'jsonl/segments_ep_title_desc/segments_ep_title_desc.json', 'w',
+                         encoding='utf-8') as f2, \
+                    open(data_dir + 'jsonl/segments_show_ep_title_desc/segments_show_ep_title_desc.json', 'w',
+                         encoding='utf-8') as f3:
+                for record in tqdm(transcripts.to_dict(orient='records')):
+                    segments = make_segments(record)
+                    for segment in segments:
+                        segment['id'] = id_count
+                        id_count += 1
+                        metadata = {
+                            'id': segment['id'],
+                            'episode_filename_prefix': record['episode_filename_prefix'],
+                            'start_time': segment['start_time'],
+                        }
+                        segment_metadata = pd.concat([segment_metadata, pd.DataFrame([metadata])])
+                        to_dump = {
+                            'id': segment['id'],
+                            'contents': segment['text']}
+                        json.dump(to_dump, f)
+                        f.write('\n')
+                        to_dump2 = {
+                            'id': segment['id'],
+                            'contents': segment['episode_name'] + ' | ' + segment['ep_description'] + ' | ' + segment[
+                                'text']}
+                        json.dump(to_dump2, f2)
+                        f2.write('\n')
+                        to_dump3 = {
+                            'id': segment['id'],
+                            'contents': segment['show_name'] + ' | ' + segment['show_description'] + ' | ' + segment[
+                                'episode_name'] + ' | ' + segment['ep_description'] + ' | ' + segment['text']}
+                        json.dump(to_dump3, f3)
+            segment_metadata.reset_index(drop=True, inplace=True)
+            segment_metadata.to_feather(data_dir + 'feathers/segment_metadata.feather')
+        os.system(
+            f"python -m pyserini.index.lucene --collection JsonCollection --input data/jsonl/all_segments  --index data/all_segments_index --generator DefaultLuceneDocumentGenerator --threads 4 --storePositions --storeDocvectors --storeRaw")
+        os.system(
+            f"python -m pyserini.index.lucene --collection JsonCollection --input data/jsonl/segments_ep_title_desc  --index data/segments_ep_title_desc_index --generator DefaultLuceneDocumentGenerator --threads 4 --storePositions --storeDocvectors --storeRaw")
+        os.system(
+            f"python -m pyserini.index.lucene --collection JsonCollection --input data/jsonl/segments_show_ep_title_desc  --index data/segments_show_ep_title_desc_index --generator DefaultLuceneDocumentGenerator --threads 4 --storePositions --storeDocvectors --storeRaw")
+
+
 def read_queries(test=False):
     if test:
         location = data_dir + 'queries/podcasts_2020_topics_test.xml'
@@ -269,5 +334,25 @@ def read_qrels(test=False):
     return qrels_dicts
 
 
+def make_segments(transcript):
+    duration = transcript['start_times'][-1]
+    start_times = transcript['start_times']
+    words = transcript['words']
+    splits = []
+    for start in range(0, int(duration - 60), 60):
+        end = start + 120
+        start_index = np.where(start_times > start)[0][0]
+        start_index = max(0, start_index - 1)
+        end_index = np.where(start_times > end)
+        end_index = end_index[0][0] if len(end_index[0]) else len(start_times)
+        text = ' '.join(words[start_index:end_index])
+        split_dict = transcript.copy()
+        split_dict['text'] = text
+        split_dict['start_time'] = start
+
+        splits.append(split_dict)
+    return splits
+
+
 if __name__ == '__main__':
-    make_indices()
+    make_segment_indices()

@@ -172,7 +172,7 @@ def precision_recall_plot():
     # setup plot details
     colors = cycle(["navy", "turquoise", "darkorange", "cornflowerblue", "teal"])
 
-    _, ax = plt.subplots(figsize=(7, 8))https://huggingface.co/amberoad/bert-multilingual-passage-reranking-msmarco
+    _, ax = plt.subplots(figsize=(7, 8))
 
     # Show F1 score lines
     f_scores = np.linspace(0.2, 0.8, num=4)
