@@ -1,13 +1,15 @@
+"""
+Functions for loading data, generating feathers, making indices
+"""
+
+import json
 import math
+import os
 
 import numpy as np
 import pandas as pd
-import os
-import json
-from tqdm import tqdm
 from bs4 import BeautifulSoup
-import pdcast as pdc
-import pickle
+from tqdm import tqdm
 
 pd.options.display.max_columns = None
 pd.options.display.max_rows = None
@@ -240,42 +242,53 @@ def make_segment_indices():
             transcripts['ep_description'] = transcripts['ep_description'].fillna('')
             transcripts['show_name'] = transcripts['show_name'].fillna('')
             transcripts['show_description'] = transcripts['show_description'].fillna('')
+            transcripts = transcripts.to_dict(orient='records')
             id_count = 1
-            segment_metadata = pd.DataFrame()
-            with open(data_dir + 'jsonl/all_segments/all_segments.json', 'w', encoding='utf-8') as f, \
-                    open(data_dir + 'jsonl/segments_ep_title_desc/segments_ep_title_desc.json', 'w',
-                         encoding='utf-8') as f2, \
-                    open(data_dir + 'jsonl/segments_show_ep_title_desc/segments_show_ep_title_desc.json', 'w',
-                         encoding='utf-8') as f3:
-                for record in tqdm(transcripts.to_dict(orient='records')):
-                    segments = make_segments(record)
-                    for segment in segments:
-                        segment['id'] = id_count
-                        id_count += 1
-                        metadata = {
-                            'id': segment['id'],
-                            'episode_filename_prefix': record['episode_filename_prefix'],
-                            'start_time': segment['start_time'],
-                        }
-                        segment_metadata = pd.concat([segment_metadata, pd.DataFrame([metadata])])
-                        to_dump = {
-                            'id': segment['id'],
-                            'contents': segment['text']}
-                        json.dump(to_dump, f)
-                        f.write('\n')
-                        to_dump2 = {
-                            'id': segment['id'],
-                            'contents': segment['episode_name'] + ' | ' + segment['ep_description'] + ' | ' + segment[
-                                'text']}
-                        json.dump(to_dump2, f2)
-                        f2.write('\n')
-                        to_dump3 = {
-                            'id': segment['id'],
-                            'contents': segment['show_name'] + ' | ' + segment['show_description'] + ' | ' + segment[
-                                'episode_name'] + ' | ' + segment['ep_description'] + ' | ' + segment['text']}
-                        json.dump(to_dump3, f3)
-            segment_metadata.reset_index(drop=True, inplace=True)
+            segment_metadata = []
+            dumps1 = []
+            dumps2 = []
+            dumps3 = []
+            for record in tqdm(transcripts, desc='Making segment indices'):
+                segments = make_segments(record)
+                for segment in segments:
+                    segment['id'] = id_count
+                    id_count += 1
+                    metadata = {
+                        'id': segment['id'],
+                        'episode_filename_prefix': record['episode_filename_prefix'],
+                        'start_time': segment['start_time'],
+                    }
+                    segment_metadata.append(metadata)
+                    to_dump = {
+                        'id': segment['id'],
+                        'contents': segment['text']}
+                    dumps1.append(to_dump)
+                    to_dump2 = {
+                        'id': segment['id'],
+                        'contents': segment['episode_name'] + ' | ' + segment['ep_description'] + ' | ' + segment[
+                            'text']}
+                    dumps2.append(to_dump2)
+                    to_dump3 = {
+                        'id': segment['id'],
+                        'contents': segment['show_name'] + ' | ' + segment['show_description'] + ' | ' + segment[
+                            'episode_name'] + ' | ' + segment['ep_description'] + ' | ' + segment['text']}
+                    dumps3.append(to_dump3)
+            segment_metadata = pd.DataFrame(segment_metadata)
             segment_metadata.to_feather(data_dir + 'feathers/segment_metadata.feather')
+            with open(data_dir + 'jsonl/all_segments/all_segments.json', 'w', encoding='utf-8') as f:
+                for record in tqdm(dumps1, desc='Writing all segments'):
+                    json.dump(record, f)
+                    f.write('\n')
+            with open(data_dir + 'jsonl/segments_ep_title_desc/segments_ep_title_desc.json', 'w',
+                      encoding='utf-8') as f:
+                for record in tqdm(dumps2, desc='Writing segments with episode title and description'):
+                    json.dump(record, f)
+                    f.write('\n')
+            with open(data_dir + 'jsonl/segments_show_ep_title_desc/segments_show_ep_title_desc.json', 'w',
+                      encoding='utf-8') as f:
+                for record in tqdm(dumps3, desc='Writing segments with show title and description'):
+                    json.dump(record, f)
+                    f.write('\n')
         os.system(
             f"python -m pyserini.index.lucene --collection JsonCollection --input data/jsonl/all_segments  --index data/all_segments_index --generator DefaultLuceneDocumentGenerator --threads 4 --storePositions --storeDocvectors --storeRaw")
         os.system(
@@ -361,6 +374,7 @@ def read_segments():
         for line in tqdm(f, desc="Reading jsonl", leave=False):
             data.append(json.loads(line))
     return data
+
 
 if __name__ == '__main__':
     make_segment_indices()

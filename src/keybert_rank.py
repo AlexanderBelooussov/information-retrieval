@@ -1,12 +1,16 @@
+"""
+Score segments using KeyBERT
+"""
+
+from keybert import KeyBERT
 from tqdm import tqdm
 
-from load_data import read_metadata, read_transcripts, make_segments
-import numpy as np
-from keybert import KeyBERT
+from load_data import read_transcripts, make_segments
 from query_expansion import expand_query
 
 
-def retrieve_segments(query, split_transcripts, use_description=True, k=50, n=25, n_grams=1, verbose=0, query_expansion=True):
+def rank_segments_keybert(query, split_transcripts, use_description=True, k=50, n=25, n_grams=1, verbose=0,
+                          query_expansion=True):
     if query_expansion:
         n = min(n, 10)  # limit keywords if using query expansion
     kw_model = KeyBERT(model="all-MiniLM-L6-v2")
@@ -28,14 +32,12 @@ def retrieve_segments(query, split_transcripts, use_description=True, k=50, n=25
         expanded_query = dict(sorted(expanded_query.items(), key=lambda x: x[1], reverse=True)[:n * 10])
         q_keywords = expanded_query
     scores = []
-    for transcript in tqdm(split_transcripts, desc=f"Retrieving segments for query {query['id']}", leave=verbose == 2, disable=verbose == 0):
+    for transcript in tqdm(split_transcripts, desc=f"Ranking using KeyBERT for query {query['id']}", leave=verbose == 2,
+                           disable=verbose == 0):
         text = transcript['text']
-        # tc_keywords = dict(kw_model.extract_keywords(text, keyphrase_ngram_range=(1, n_grams), stop_words='english', top_n=n))
-        # TODO: test these options
-        tc_keywords = dict(kw_model.extract_keywords(text, keyphrase_ngram_range=(1, n_grams), stop_words='english', top_n=n,
-                                                     candidates=q_keywords.keys()))
-        # tc_keywords = dict(kw_model.extract_keywords(text, keyphrase_ngram_range=(1, n_grams), stop_words='english', top_n=n,
-        #                                              seed_keywords=q_keywords.keys()))
+        tc_keywords = dict(
+            kw_model.extract_keywords(text, keyphrase_ngram_range=(1, n_grams), stop_words='english', top_n=n,
+                                      candidates=q_keywords.keys()))
         keyword_intersection = set(q_keywords.keys()).intersection(set(tc_keywords.keys()))
         score = sum([q_keywords[k] * tc_keywords[k] for k in keyword_intersection])
         scores.append((transcript, score))

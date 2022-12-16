@@ -1,10 +1,16 @@
+"""
+Query expansion using WordNet
+Based on https://medium.com/@swaroopshyam0/a-simple-query-expansion-49aef3442416
+"""
+
 import itertools
+import re
 
 import nltk
+from nltk.corpus import stopwords
 from nltk.corpus import wordnet as wn
 from nltk.tokenize import word_tokenize
-from nltk.corpus import stopwords
-import re
+
 
 # nltk.download('wordnet')
 # nltk.download('punkt')
