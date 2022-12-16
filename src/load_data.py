@@ -354,5 +354,13 @@ def make_segments(transcript):
     return splits
 
 
+def read_segments():
+    location = data_dir + "jsonl/all_segments/all_segments.json"
+    data = []
+    with open(location) as f:
+        for line in tqdm(f, desc="Reading jsonl", leave=False):
+            data.append(json.loads(line))
+    return data
+
 if __name__ == '__main__':
     make_segment_indices()
