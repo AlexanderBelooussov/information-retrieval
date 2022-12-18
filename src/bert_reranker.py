@@ -16,7 +16,7 @@ print(f"Device: {device}")
 model.to(device)
 
 
-def rerank_segments(segments, query: str):
+def rerank_segments(segments, query: str, verbose=False):
     """
     Rerank using BERT
     """
@@ -34,7 +34,7 @@ def rerank_segments(segments, query: str):
     # batch_size = 4
     batch_size = 1
     chunks = [segments[x:x + batch_size] for x in range(0, len(segments), batch_size)] if batch_size > 1 else segments
-    for chunk in tqdm(chunks, desc="Reranking using BERT"):
+    for chunk in tqdm(chunks, desc="Reranking using BERT", disable=not verbose):
         if batch_size > 1:
             queries = [query] * len(chunk)
             passages = [segment["contents"] for segment in chunk]

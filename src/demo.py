@@ -37,41 +37,46 @@ if __name__ == '__main__':
     train_queries = read_queries()
     test_queries = read_queries(True)
     query = None
-    print(f"1 - Query from number")
-    print(f"2 - New query")
-    x = int(input(f"> "))
-    if x == 1:
-        qid = int(input(f"Query id: "))
-        for q in test_queries + train_queries:
-            if q['id'] == qid:
-                query = q
-                print(f"Chosen query: {query}")
-    elif x == 2:
-        qid = 0
-        qtype = "new"
-        qquery = input(f"Short query: ")
-        qdescription = input(f"Query description: ")
-        query = {"id": qid,
-                 "query": qquery,
-                 "description": qdescription,
-                 "type": qtype}
-    else:
-        raise ValueError("Invalid input")
+    while True:
+        print(f"1 - Query from number")
+        print(f"2 - New query")
+        print(f"3 - Exit")
+        x = int(input(f"> "))
+        if x == 1:
+            qid = int(input(f"Query id: "))
+            for q in test_queries + train_queries:
+                if q['id'] == qid:
+                    query = q
+                    print(f"Chosen query: {query}")
+        elif x == 2:
+            qid = 0
+            qtype = "new"
+            qquery = input(f"Short query: ")
+            qdescription = input(f"Query description: ")
+            query = {"id": qid,
+                     "query": qquery,
+                     "description": qdescription,
+                     "type": qtype}
+        elif x == 3:
+            break
+        else:
+            raise ValueError("Invalid input")
 
 
-    relevant_q_rels = []
-    result = process_query(query, podcasts, relevant_q_rels,
-                           bm_k=args.bm_k,
-                           seg_k=args.seg_k,
-                           verbose=0,
-                           n_grams=args.n_grams,
-                           query_expansion=args.query_expansion,
-                           index=args.index,
-                           keybert=args.keybert,
-                           mix=args.mix,
-                           rerank=args.rerank)
-    segments = result["segments"]
-    for seg in segments:
-        print(f"{seg}\n")
+
+        relevant_q_rels = []
+        result = process_query(query, podcasts, relevant_q_rels,
+                               bm_k=args.bm_k,
+                               seg_k=args.seg_k,
+                               verbose=0,
+                               n_grams=args.n_grams,
+                               query_expansion=args.query_expansion,
+                               index=args.index,
+                               keybert=args.keybert,
+                               mix=args.mix,
+                               rerank=args.rerank)
+        segments = result["segments"]
+        for seg in segments:
+            print(f"{seg}\n")
 
 
